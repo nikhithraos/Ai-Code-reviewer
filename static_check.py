@@ -52,6 +52,18 @@ class ASTAnalyzer(ast.NodeVisitor):
                           "Possible SQL injection",
                           "Query is built with string formatting or concatenation.",
                           "Use parameterized queries: execute(sql, params).")
+        is_getenv = func.attr == "getenv" if isinstance(func, ast.Attribute) else False
+        is_environ_get = (isinstance(func, ast.Attribute) and func.attr == "get"
+                  and isinstance(func.value, ast.Attribute) and func.value.attr == "environ")
+        if (is_getenv or is_environ_get) and len(node.args) >= 2:
+            name, default = node.args[0], node.args[1]
+            if (isinstance(name, ast.Constant) and isinstance(name.value, str)
+                    and any(h in name.value.lower() for h in SECRET_HINTS)
+                    and isinstance(default, ast.Constant) and isinstance(default.value, str) and default.value):
+                self._add(node, Category.SECURITY, Severity.HIGH,
+                        "Secret has hardcoded fallback",
+                        "A literal default means the secret is still stored in source code.",
+                        "Read the variable with no default and fail if it is missing.")
         self.generic_visit(node)
 
     def visit_Assign(self, node):

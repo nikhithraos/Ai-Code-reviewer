@@ -6,21 +6,27 @@ class LLMProvider(ABC):
     """Agents depend on this interface, never on a concrete model."""
 
     @abstractmethod
-    def generate(self, system: str, prompt: str, *,
-                 temperature: float = 0.1, json_mode: bool = False) -> str:
+    def generate(self, system: str, prompt: str, *, temperature: float = 0.1,
+                 json_mode: bool = False, max_tokens: int = 700) -> str:
         ...
 
 
 class OllamaProvider(LLMProvider):
     def __init__(self, model="qwen2.5-coder:7b",
-                 host="http://localhost:11434", timeout=180):
+                 host="http://localhost:11434", timeout=900):
         self.model, self.host, self.timeout = model, host, timeout
 
-    def generate(self, system, prompt, *, temperature=0.1, json_mode=False):
+    def generate(self, system, prompt, *, temperature=0.1,
+                 json_mode=False, max_tokens=700):
         payload = {
             "model": self.model,
             "stream": False,
-            "options": {"temperature": temperature},
+            "keep_alive": "30m",
+            "options": {
+                "temperature": temperature,
+                "num_ctx": 4096,
+                "num_predict": max_tokens,
+            },
             "messages": [{"role": "system", "content": system},
                          {"role": "user", "content": prompt}],
         }
@@ -37,7 +43,8 @@ class MockProvider(LLMProvider):
     def __init__(self, responses: list[str]):
         self.responses, self.calls = responses, 0
 
-    def generate(self, system, prompt, *, temperature=0.1, json_mode=False):
+    def generate(self, system, prompt, *, temperature=0.1,
+                 json_mode=False, max_tokens=700):
         reply = self.responses[min(self.calls, len(self.responses) - 1)]
         self.calls += 1
         return reply

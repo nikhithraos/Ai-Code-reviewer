@@ -42,7 +42,7 @@ class ReviewManager:
             f.id = f"F{i:03d}"
         return unique
 
-    def run_pipeline(self, code: str) -> PipelineResult:
+    def run_pipeline(self, code: str, quick_verify: bool = True) -> PipelineResult:
         language = detect_language(code)
         initial, errors = self.review(code, language)
 
@@ -53,19 +53,27 @@ class ReviewManager:
             return PipelineResult(language=language, errors=errors)
 
         fix = self.fixer.run(code, initial)
-        if fix.improved_code == code:                 # fix rejected, nothing to re-review
-            final = initial
+
+        if fix.improved_code == code:                 # fix rejected, nothing to re-check
+            final, checked = initial, initial
+        elif quick_verify:
+            final = static_check(fix.improved_code)   # instant, no LLM
+            # the AST check can only confirm AST findings, so compare only those
+            checked = [f for f in initial if f.source == "ast"]
         else:
             final, final_errors = self.review(fix.improved_code, language)
             errors += final_errors
+            checked = initial
 
-        initial_keys, final_keys = {_key(f) for f in initial}, {_key(f) for f in final}
+        checked_keys = {_key(f) for f in checked}
+        final_keys = {_key(f) for f in final}
         return PipelineResult(
             language=language, initial=initial, fix=fix, final=final,
-            resolved=[f for f in initial if _key(f) not in final_keys],
-            remaining=[f for f in initial if _key(f) in final_keys],
-            introduced=[f for f in final if _key(f) not in initial_keys],
+            resolved=[f for f in checked if _key(f) not in final_keys],
+            remaining=[f for f in checked if _key(f) in final_keys],
+            introduced=[f for f in final if _key(f) not in checked_keys],
             errors=errors,
+            comparison_reliable=not any("LLM call failed" in e for e in errors),
         )
 
 

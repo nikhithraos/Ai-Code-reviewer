@@ -67,6 +67,15 @@ def test_pipeline_marks_finding_resolved():
                       "changes": ["Fixed index"]})
     # call order: 3 agents (initial), fix agent, 3 agents (final review)
     llm = MockProvider([bug, EMPTY, EMPTY, fix, EMPTY, EMPTY, EMPTY])
-    result = ReviewManager(llm).run_pipeline("def f(xs):\n    return xs[len(xs)]\n")
+    result = ReviewManager(llm).run_pipeline("def f(xs):\n    return xs[len(xs)]\n", quick_verify=False) 
     assert len(result.resolved) == 1
     assert not result.remaining and not result.introduced
+
+def test_quick_verify_resolves_ast_finding():
+    fix = json.dumps({"improved_code": "def f(x=None):\n    return x or []\n",
+                      "changes": ["Replaced mutable default"]})
+    # call order: 3 agents (initial), then the fix agent. No LLM re-review in quick mode.
+    llm = MockProvider([EMPTY, EMPTY, EMPTY, fix])
+    result = ReviewManager(llm).run_pipeline("def f(x=[]):\n    return x\n")
+    assert any("Mutable" in f.title for f in result.resolved)
+    assert not result.remaining

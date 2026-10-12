@@ -118,7 +118,7 @@ class FixAgent:
         reason = "no attempt made"
         for _ in range(self.max_retries + 1):
             try:
-                raw = self.llm.generate(self.system_prompt, prompt, json_mode=True)
+                raw = self.llm.generate(self.system_prompt, prompt, json_mode=True, max_tokens=3000)
                 result = FixResult(**extract_json(raw))
                 ast.parse(result.improved_code)                       # safeguard 1: valid syntax
                 missing = defined_names(code) - defined_names(result.improved_code)

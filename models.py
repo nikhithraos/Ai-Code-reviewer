@@ -53,3 +53,4 @@ class PipelineResult(BaseModel):
     remaining: list[Finding] = Field(default_factory=list)
     introduced: list[Finding] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
+    comparison_reliable: bool = True

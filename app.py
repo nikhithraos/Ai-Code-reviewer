@@ -12,6 +12,7 @@ with st.sidebar:
     st.header("Settings")
     model = st.text_input("Ollama model", "qwen2.5-coder:7b")
     parallel = st.checkbox("Run agents in parallel", value=False)
+    quick = st.checkbox("Quick verify (skip LLM re-review)", value=True)
 
 code = st.text_area("Paste your Python code", height=300)
 upload = st.file_uploader("...or upload a .py file", type=["py"])
@@ -21,7 +22,7 @@ if upload:
 if st.button("▶ Run Review") and code.strip():
     manager = ReviewManager(get_provider("ollama", model=model), parallel=parallel)
     with st.spinner("Agents are reviewing your code..."):
-        st.session_state["result"] = manager.run_pipeline(code)
+        st.session_state["result"] = manager.run_pipeline(code, quick_verify=quick)
         st.session_state["original"] = code
 
 if "result" in st.session_state:
@@ -56,9 +57,11 @@ if "result" in st.session_state:
             st.info("No fix generated.")
 
     with tab3:
-        st.success(f"Resolved ({len(r.resolved)}): {[f.title for f in r.resolved]}")
-        st.warning(f"Remaining ({len(r.remaining)}): {[f.title for f in r.remaining]}")
-        st.error(f"Newly introduced ({len(r.introduced)}): {[f.title for f in r.introduced]}")
+        if not r.comparison_reliable:
+            st.warning("Some agents failed or timed out, so the resolved/new comparison is unreliable. Re-run.")
+            st.success(f"Resolved ({len(r.resolved)}): {[f.title for f in r.resolved]}")
+            st.warning(f"Remaining ({len(r.remaining)}): {[f.title for f in r.remaining]}")
+            st.error(f"Newly introduced ({len(r.introduced)}): {[f.title for f in r.introduced]}")
         for e in r.errors:
             st.caption(f"⚠ {e}")
         st.download_button("Download report (Markdown)", build_markdown(r), "report.md")
